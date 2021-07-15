@@ -40,7 +40,6 @@ def run_motifsearch(fasta_query, output_dir, species_code):
     :param output_dir: path to output directory where result files will be written
     :return: write all results in output directory
     """
-
     fcount = open(output_dir + path.sep + f"{species_code}_motifs_count.txt", "w")
     fpos = open(output_dir + path.sep + f"{species_code}_motifs_positions.txt", "w")
     fseq = open(output_dir + path.sep + f"{species_code}_motifs_sequences.fa", "w")
@@ -51,13 +50,28 @@ def run_motifsearch(fasta_query, output_dir, species_code):
 
 
 def run_signalp(fasta_query, path_out, species_code):
+    """
+    Function to run signalp program
+    :param fasta_query: path to query proteins in FASTA format
+    :param path_out: path to output directory
+    :param species_code: six-letter prefix species-specific
+    :return: write results (mature proteins, signalp log and signalp table results) in out directory
+    """
     signalp_out = open(path_out + path.sep + species_code + ".signalp.log", "w")
-    sp_args = ["/home/jeankeller//signalp-5.0/bin/signalp5", "-fasta", fasta_query, "-format", "short", "-mature",
-               "-prefix", species_code, "-org", "euk"]
+    sp_args = ["signalp5", "-fasta", fasta_query, "-format", "short", "-mature", "-prefix", species_code, "-org", "euk"]
     subprocess.run(sp_args, stdout=signalp_out, cwd=path_out)
 
 
 def run_meme(fasta_query, meme_res_out, species_code, analysis_type, cpus):
+    """
+    Function to run MEME program
+    :param fasta_query: path to query proteins in FASTA format
+    :param meme_res_out: path to output directoru
+    :param species_code: six-letter prefix species-specific
+    :param analysis_type: string to precise if the analysis concerns all candidate or top candidate
+    :param cpus: number of threads to use. ONLY SET UP IF PARALLEL VERSION OF MEME AVAILABLE!!! (openMPI)
+    :return: write all results (logo pictures in eps/png format, html and txt formatted results) in out directory
+    """
     meme_out = open(meme_res_out + path.sep + species_code + "_" + analysis_type + ".log", "w")
     meme_args = ["meme", fasta_query, "-oc", meme_res_out + path.sep + species_code + "_" + analysis_type, "-protein",
                  "-mod", "anr", "-nmotifs", "10", "-minw", "10", "-maxw", "30", "-evt", "0.001"]
