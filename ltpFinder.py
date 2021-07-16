@@ -163,6 +163,7 @@ def main():
         sys.stdout.write(f"done processing {path.basename(fasta_file)}!\n#########\n")
         sys.stdout.flush()
 
+    # Running MEME on merged top candidates from all query species
     sys.stdout.write("Running MEME on all top candidates...  ")
     sys.stdout.flush()
     all_top_candidates = open(path_res_out + path.sep + "all_top_candidates.fasta", "w")

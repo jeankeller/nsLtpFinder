@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # @Time    : 13/07/2021 11:29
 # @Author  : Jean Keller
@@ -10,6 +11,10 @@ from Bio import SeqIO
 
 
 class GetMotifs:
+    """
+    Class to identify given motif in sequences dataset
+    Adapted from motifSearch package available here: https://github.com/jeankeller/motifSearch.git
+    """
     def __init__(self, motif, fasta_file, path_count, fseq, fpos):
         self.mot = motif
         self.fseq = fasta_file

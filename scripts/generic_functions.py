@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # @Time    : 13/07/2021 13:50
 # @Author  : Jean Keller
@@ -13,6 +14,15 @@ from Bio.SeqUtils.ProtParam import ProteinAnalysis
 
 
 def get_sequences_id_tp_extract(species_code, path_hmmer_res, path_ms_res):
+    """
+    Function to extract IDs of proteins from HMMSEARCH & motifSearch results for extracting their sequences later
+    :param species_code: six-letter prefix species-specific
+    :param path_hmmer_res: path to HMMSEARCH results
+    :param path_ms_res: path to motifSearch results
+    :return: list of protein IDs to keep and dataframe summarizing results (will be used downstream and written at
+    the end)
+    """
+    # Create empty dataframe and read HMMSEARCH/motifSearch results
     df_res_summary = pds.DataFrame(columns=["seqName"], dtype=str)
     hmmer_res = pds.read_csv(glob(f"{path_hmmer_res}{path.sep}{species_code}*.domtblout")[0], delim_whitespace=True,
                              comment="#", names=["seqName", "accession", "seqLength", "queryName", "pfamCode",
@@ -22,9 +32,14 @@ def get_sequences_id_tp_extract(species_code, path_hmmer_res, path_ms_res):
                                                  "acc", "targetDesc"])
     ms_res = pds.read_csv(glob(f"{path_ms_res}{path.sep}{species_code}_motifs_count.txt")[0], sep="\t",
                           names=["seqIndex", "seqName", "motifRegex", "NumberOfMotifs"])
+
+    # Get protein with motif identified
     non_null_motifsearch_res = ms_res[ms_res["NumberOfMotifs"] != 0].copy()
+    # Get intersection of motifSearch & HMMSEARCH results
     seq_to_keep = list(set(hmmer_res["seqName"].tolist()) | set(non_null_motifsearch_res["seqName"].tolist()))
     df_res_summary["seqName"] = seq_to_keep
+    # Add, for each protein if it has been detected by motifSearch (1 in motifsearch column), hmmsearch (1 in
+    # hmmsearch column) or both (1 in both column). 0 indicates no result for the considered analysis
     df_res_summary["hmmsearch"] = df_res_summary["seqName"].\
         apply(lambda x: 1 if x in hmmer_res["seqName"].tolist() else 0)
     df_res_summary["motifsearch"] = df_res_summary["seqName"].\
@@ -33,6 +48,15 @@ def get_sequences_id_tp_extract(species_code, path_hmmer_res, path_ms_res):
 
 
 def extract_seq(species_code, fasta_file, path_out, list_ids, prefix_file):
+    """
+    Function to extract sequences from list of IDs
+    :param species_code: six-letter prefix species-specific
+    :param fasta_file: path to protein file (FASTA format)
+    :param path_out: path to output directory
+    :param list_ids: list of IDs to extract
+    :param prefix_file: prefix to determine if out file is for all candidates or only top candidates
+    :return: write a FASTA file of sequences to extract
+    """
     dbseq = SeqIO.index(fasta_file, "fasta")
     with open(path_out + path.sep + f"{species_code}_{prefix_file}_retained_seq.fa", "w") as fasta_out:
         for seq_id in list_ids:
@@ -45,6 +69,13 @@ def extract_seq(species_code, fasta_file, path_out, list_ids, prefix_file):
 
 
 def get_prot_properties(s, retained_seq):
+    """
+    Function to add column to the summarizing dataframe with protein properties (isoelectric point, gravy and
+    molecular weight so far, other can be added)
+    :param s: dataframe
+    :param retained_seq: FASTA file of sequences to analyze
+    :return: dataframe with new columns containing protein properties
+    """
     seq = ProteinAnalysis(clean_seq(str(retained_seq[s["seqName"]].seq)))
     s["isoelectric"] = seq.isoelectric_point()
     s["gravy"] = seq.gravy()
@@ -53,4 +84,9 @@ def get_prot_properties(s, retained_seq):
 
 
 def clean_seq(seq):
+    """
+    Function to clean protein sequences prior propeties analysis. Trim invalid characters such as *, . and X
+    :param seq: sequence to clean
+    :return: cleaned sequence
+    """
     return seq.replace("*", "").replace("X", "").replace(".", "")
