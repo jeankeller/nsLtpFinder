@@ -14,3 +14,13 @@ Analytical steps are:
     - only top candidate proteins for each species
     - only top candiate proteins of all species merged
   
+Requirements:
+Python modules:
+  - pandas (tested on version 1.3.0)
+  - biopython (tested on version 1.79)
+  - argparse (tested on version 1.4.0)
+
+External programs:
+  - SignalP5 (won't work with previous versions)
+  - HMMER (tested on version 3.3)
+  - MEME (tested on version 5.3.3)
