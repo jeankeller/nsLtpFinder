@@ -7,7 +7,7 @@
 # @Software: PyCharm
 
 import sys
-from os import path, mkdir
+from os import path, mkdir, getcwd
 from glob import glob
 from scripts.check_dependencies import check_installed_programs, check_installed_modules
 from scripts.run_progs import run_hmmsearch, run_motifsearch, run_signalp, run_meme
@@ -32,7 +32,7 @@ def main():
     args_parser.add_argument("-f", "--files", required=True, type=str, help="Path to directory containing fasta "
                                                                             "queries")
     args_parser.add_argument("-t", "--threads", required=False, type=int, default=1, help="Number of CPUs to use")
-    args_parser.add_argument("--hmm", required=True, type=str, help="Path to file containing HMM models")
+    # args_parser.add_argument("--hmm", required=True, type=str, help="Path to file containing HMM models")
     args_parser.add_argument("-o", "--output", required=False, default="./", help="""Path to output directory 
     (default: current directory)""")
     args_parser.add_argument("--hmm_eval_glob", required=False, default=1e-04, help="E-value threshold for HMM whole "
@@ -82,14 +82,18 @@ def main():
 
     for fasta_file in list_fasta_queries:
         sys.stdout.write(f"\n#########\nProcessing file {path.basename(fasta_file)}...  \n")
+
+        #  Run HMMSEARCH
         sys.stdout.write("Performing HMSEARCH...  ")
         sys.stdout.flush()
         species_code = path.splitext(path.basename(fasta_file))[0].split("_")[0]
+        path_hmm_models = f"{path.dirname(sys.argv[0])}{path.sep}data{path.sep}ltp_domains.hmm"
         run_hmmsearch(fasta_query=fasta_file, path_rep_out=hmmsearch_outdir, global_evalue=args.hmm_eval_glob,
-                      domain_evalue=args.hmm_eval_dom, hmm_models=args.hmm, hmm_cpus=args.threads)
+                      domain_evalue=args.hmm_eval_dom, hmm_models=path_hmm_models, hmm_cpus=args.threads)
         sys.stdout.write("done\n")
         sys.stdout.flush()
 
+        # Run motifSearch
         sys.stdout.write("Performing motifSearch...  ")
         sys.stdout.flush()
         run_motifsearch(fasta_query=fasta_file, output_dir=ms_outdir, species_code=species_code)
