@@ -166,12 +166,13 @@ def main():
     # Running MEME on merged top candidates from all query species
     sys.stdout.write("Running MEME on all top candidates...  ")
     sys.stdout.flush()
-    all_top_candidates = open(path_res_out + path.sep + "all_top_candidates.fasta", "wb")
     top_candidates_files = glob(f"{path_res_out}{path.sep}*.fa")
-    for file in top_candidates_files:
-        with open(file, "rb") as readfile:
-            shutil.copyfileobj(readfile, all_top_candidates)
-    all_top_candidates.close()
+    with open(f"{path_res_out}{path.sep}all_top_candidates.fasta", "wb") as outfile:
+        for file in top_candidates_files:
+            with open(file, "rb") as readfile:
+                shutil.copyfileobj(readfile, outfile)
+    outfile.close()
+    all_top_candidates = path_res_out + path.sep + "all_top_candidates.fasta"
     run_meme(fasta_query=all_top_candidates, meme_res_out=path_meme_out, analysis_type="top_candidates",
              species_code="all", cpus=args.threads)
     sys.stdout.write("done\n")
