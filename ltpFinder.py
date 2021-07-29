@@ -32,7 +32,7 @@ def main():
     args_parser.add_argument("-f", "--files", required=True, type=str, help="Path to directory containing fasta "
                                                                             "queries")
     args_parser.add_argument("-t", "--threads", required=False, type=int, default=1, help="Number of CPUs to use")
-    # args_parser.add_argument("--hmm", required=True, type=str, help="Path to file containing HMM models")
+    args_parser.add_argument("--hmm", required=True, type=str, help="Path to file containing HMM models")
     args_parser.add_argument("-o", "--output", required=False, default="./", help="""Path to output directory 
     (default: current directory)""")
     args_parser.add_argument("--hmm_eval_glob", required=False, default=1e-04, help="E-value threshold for HMM whole "
@@ -87,9 +87,11 @@ def main():
         sys.stdout.write("Performing HMSEARCH...  ")
         sys.stdout.flush()
         species_code = path.splitext(path.basename(fasta_file))[0].split("_")[0]
-        path_hmm_models = f"{path.dirname(sys.argv[0])}{path.sep}data{path.sep}ltp_domains.hmm"
+        # path_hmm_models = f"{path.dirname(sys.argv[0])}{path.sep}data{path.sep}ltp_domains.hmm"
+        # run_hmmsearch(fasta_query=fasta_file, path_rep_out=hmmsearch_outdir, global_evalue=args.hmm_eval_glob,
+        #               domain_evalue=args.hmm_eval_dom, hmm_models=path_hmm_models, hmm_cpus=args.threads)
         run_hmmsearch(fasta_query=fasta_file, path_rep_out=hmmsearch_outdir, global_evalue=args.hmm_eval_glob,
-                      domain_evalue=args.hmm_eval_dom, hmm_models=path_hmm_models, hmm_cpus=args.threads)
+                      domain_evalue=args.hmm_eval_dom, hmm_models=args.hmm, hmm_cpus=args.threads)
         sys.stdout.write("done\n")
         sys.stdout.flush()
 
