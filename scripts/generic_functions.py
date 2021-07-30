@@ -90,3 +90,7 @@ def clean_seq(seq):
     :return: cleaned sequence
     """
     return seq.replace("*", "").replace("X", "").replace(".", "")
+
+
+def count_cysteines(seq):
+    return seq.upper().count("C")

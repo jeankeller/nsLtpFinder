@@ -11,7 +11,7 @@ from os import path, mkdir, getcwd
 from glob import glob
 from scripts.check_dependencies import check_installed_programs, check_installed_modules
 from scripts.run_progs import run_hmmsearch, run_motifsearch, run_signalp, run_meme
-from scripts.generic_functions import get_sequences_id_tp_extract, extract_seq, get_prot_properties
+from scripts.generic_functions import get_sequences_id_tp_extract, extract_seq, get_prot_properties, count_cysteines
 
 
 def main():
@@ -33,8 +33,7 @@ def main():
                                                                             "queries")
     args_parser.add_argument("-t", "--threads", required=False, type=int, default=1, help="Number of CPUs to use")
     args_parser.add_argument("--hmm", required=True, type=str, help="Path to file containing HMM models")
-    args_parser.add_argument("-o", "--output", required=False, default="./", help="""Path to output directory 
-    (default: current directory)""")
+    args_parser.add_argument("-o", "--output", required=True, help="Path to output directory")
     args_parser.add_argument("--hmm_eval_glob", required=False, default=1e-04, help="E-value threshold for HMM whole "
                                                                                     "alignment")
     args_parser.add_argument("--hmm_eval_dom", required=False, default=1e-04, help="E-value threshold for HMM domain "
@@ -124,7 +123,13 @@ def main():
         run_signalp(fasta_query=path_retained_seq, species_code=species_code, path_out=path_signalp_out)
         signalp_res = pds.read_csv(glob(f"{path_signalp_out}{path.sep}{species_code}*.signalp5")[0], sep="\t",
                                    comment="#", names=["seqName", "signalp_pred", "sp_score", "other_score", "cs_pos"])
-
+        mature_prot = glob(f"{path_signalp_out}{path.sep}{species_code}_mature.fasta")[0]
+        cysteine_count = {}
+        for rec in SeqIO.parse(mature_prot, "fasta"):
+            cysteine_count[rec.id] = count_cysteines(str(rec.seq))
+        df_cysteines = pds.DataFrame.from_dict(cysteine_count, orient="index", columns=["cysteines_count"]).reset_index()
+        df_cysteines.rename(columns={"index": "seqName"}, inplace=True)
+        df_cysteines["cysteines_count"] = df_cysteines["cysteines_count"].astype("int32")
         sys.stdout.write("done\n")
         sys.stdout.flush()
 
@@ -134,9 +139,12 @@ def main():
 
         # Prepare output tables
         df_summary_res = df_summary_res.merge(signalp_res[["seqName", "signalp_pred"]], on="seqName", how="left")
+        df_summary_res = df_summary_res.merge(df_cysteines[["seqName", "cysteines_count"]], on="seqName", how="left")
+        df_summary_res.fillna(value={"cysteines_count": "ND"}, inplace=True)
         df_summary_res = df_summary_res.apply(get_prot_properties, args=[retained_seq], axis=1)
         df_top_candidates = df_summary_res[(df_summary_res["hmmsearch"] == 1) & (df_summary_res["motifsearch"] == 1) &
-                                           (df_summary_res["signalp_pred"] == "SP(Sec/SPI)")]
+                                           (df_summary_res["signalp_pred"] == "SP(Sec/SPI)") &
+                                           (df_summary_res["cysteines_count"] == 8)]
         seq_ids_top_candidates = df_top_candidates["seqName"].to_list()
         extract_seq(species_code=species_code, fasta_file=fasta_file, path_out=path_res_out,
                     list_ids=seq_ids_top_candidates, prefix_file="top_candidates")
