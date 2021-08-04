@@ -11,7 +11,6 @@ from os import path, mkdir, getcwd
 from glob import glob
 from scripts.check_dependencies import check_installed_programs, check_installed_modules
 from scripts.run_progs import run_hmmsearch, run_motifsearch, run_signalp, run_meme
-# from scripts.generic_functions import get_sequences_id_tp_extract, extract_seq, get_prot_properties, count_cysteines, clean_fasta
 from scripts.generic_functions import *
 
 
@@ -142,7 +141,8 @@ def main():
         cysteine_count = {}
         for rec in SeqIO.parse(mature_prot, "fasta"):
             cysteine_count[rec.id] = count_cysteines(str(rec.seq))
-        df_cysteines = pds.DataFrame.from_dict(cysteine_count, orient="index", columns=["cysteines_count"]).reset_index()
+        df_cysteines = pds.DataFrame.from_dict(cysteine_count, orient="index", columns=["cysteines_count"]).\
+            reset_index()
         df_cysteines.rename(columns={"index": "seqName"}, inplace=True)
         df_cysteines["cysteines_count"] = df_cysteines["cysteines_count"].astype("int32")
         sys.stdout.write("done\n")
@@ -157,7 +157,8 @@ def main():
         df_summary_res = df_summary_res.merge(df_cysteines[["seqName", "cysteines_count"]], on="seqName", how="left")
         df_summary_res = df_summary_res.apply(get_prot_properties, args=[retained_seq, "wholeProt"], axis=1)
         df_summary_prot_w_sp = df_summary_res[df_summary_res["signalp_pred"] == "SP(Sec/SPI)"].copy()
-        df_summary_prot_w_sp = df_summary_prot_w_sp.apply(get_prot_properties, args=[mature_prot_idx, "matureProt"], axis=1)
+        df_summary_prot_w_sp = df_summary_prot_w_sp.apply(get_prot_properties, args=[mature_prot_idx, "matureProt"],
+                                                          axis=1)
         df_summary_res = pds.merge(df_summary_res,
                                    df_summary_prot_w_sp[["seqName", "isoelectric_matureProt", "gravy_matureProt",
                                                         "molecular_weight_matureProt"]],
@@ -208,8 +209,8 @@ def main():
                 shutil.copyfileobj(readfile, outfile)
     outfile.close()
     all_top_candidates = path_res_out + path.sep + "all_top_candidates.fasta"
-    # run_meme(fasta_query=all_top_candidates, meme_res_out=path_meme_out, analysis_type="top_candidates",
-    #          species_code="all", cpus=args.threads)
+    run_meme(fasta_query=all_top_candidates, meme_res_out=path_meme_out, analysis_type="top_candidates",
+             species_code="all", cpus=args.threads)
     sys.stdout.write("done\n")
     sys.stdout.flush()
 
