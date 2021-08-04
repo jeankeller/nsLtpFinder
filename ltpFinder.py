@@ -11,7 +11,8 @@ from os import path, mkdir, getcwd
 from glob import glob
 from scripts.check_dependencies import check_installed_programs, check_installed_modules
 from scripts.run_progs import run_hmmsearch, run_motifsearch, run_signalp, run_meme
-from scripts.generic_functions import get_sequences_id_tp_extract, extract_seq, get_prot_properties, count_cysteines
+# from scripts.generic_functions import get_sequences_id_tp_extract, extract_seq, get_prot_properties, count_cysteines, clean_fasta
+from scripts.generic_functions import *
 
 
 def main():
@@ -43,6 +44,11 @@ def main():
     out_dir = args.output
     if not path.isdir(out_dir):
         mkdir(out_dir)
+
+    # Create working directory
+    workdir = out_dir + path.sep + "workdir"
+    if not path.isdir(workdir):
+        mkdir(workdir)
 
     # Create HMM output directory
     hmmsearch_outdir = out_dir + path.sep + "hmm_res"
@@ -81,15 +87,23 @@ def main():
 
     for fasta_file in list_fasta_queries:
         sys.stdout.write(f"\n#########\nProcessing file {path.basename(fasta_file)}...  \n")
+        species_code = path.splitext(path.basename(fasta_file))[0].split("_")[0]
+
+        sys.stdout.write("Cleaning input FASTA...  ")
+        sys.stdout.flush()
+        clean_fasta(fasta_file, workdir, species_code)
+        fasta_file_cleaned = glob(f"{workdir}{path.sep}{species_code}_clean.fasta")[0]
+        sys.stdout.write("done\n")
+        sys.stdout.flush()
 
         #  Run HMMSEARCH
         sys.stdout.write("Performing HMSEARCH...  ")
         sys.stdout.flush()
-        species_code = path.splitext(path.basename(fasta_file))[0].split("_")[0]
         # path_hmm_models = f"{path.dirname(sys.argv[0])}{path.sep}data{path.sep}ltp_domains.hmm"
-        # run_hmmsearch(fasta_query=fasta_file, path_rep_out=hmmsearch_outdir, global_evalue=args.hmm_eval_glob,
+        # run_hmmsearch(fasta_query=fasta_file_cleaned, path_rep_out=hmmsearch_outdir, global_evalue=args.hmm_eval_glob,
         #               domain_evalue=args.hmm_eval_dom, hmm_models=path_hmm_models, hmm_cpus=args.threads)
-        run_hmmsearch(fasta_query=fasta_file, path_rep_out=hmmsearch_outdir, global_evalue=args.hmm_eval_glob,
+
+        run_hmmsearch(fasta_query=fasta_file_cleaned, path_rep_out=hmmsearch_outdir, global_evalue=args.hmm_eval_glob,
                       domain_evalue=args.hmm_eval_dom, hmm_models=args.hmm, hmm_cpus=args.threads)
         sys.stdout.write("done\n")
         sys.stdout.flush()
@@ -97,7 +111,7 @@ def main():
         # Run motifSearch
         sys.stdout.write("Performing motifSearch...  ")
         sys.stdout.flush()
-        run_motifsearch(fasta_query=fasta_file, output_dir=ms_outdir, species_code=species_code)
+        run_motifsearch(fasta_query=fasta_file_cleaned, output_dir=ms_outdir, species_code=species_code)
         sys.stdout.write("done\n")
         sys.stdout.flush()
         sequences_to_get, df_summary_res = get_sequences_id_tp_extract(species_code=species_code,
@@ -109,7 +123,7 @@ def main():
         # Extract sequences from protein FASTA file
         sys.stdout.write("Extracting retained sequences for downstream analysis...  ")
         sys.stdout.flush()
-        extract_seq(species_code=species_code, fasta_file=fasta_file, path_out=path_fasta_seq,
+        extract_seq(species_code=species_code, fasta_file=fasta_file_cleaned, path_out=path_fasta_seq,
                     list_ids=sequences_to_get, prefix_file="all_candidates")
         sys.stdout.write("done\n")
         sys.stdout.flush()
@@ -124,6 +138,7 @@ def main():
         signalp_res = pds.read_csv(glob(f"{path_signalp_out}{path.sep}{species_code}*.signalp5")[0], sep="\t",
                                    comment="#", names=["seqName", "signalp_pred", "sp_score", "other_score", "cs_pos"])
         mature_prot = glob(f"{path_signalp_out}{path.sep}{species_code}_mature.fasta")[0]
+        mature_prot_idx = SeqIO.index(mature_prot, "fasta")
         cysteine_count = {}
         for rec in SeqIO.parse(mature_prot, "fasta"):
             cysteine_count[rec.id] = count_cysteines(str(rec.seq))
@@ -140,14 +155,23 @@ def main():
         # Prepare output tables
         df_summary_res = df_summary_res.merge(signalp_res[["seqName", "signalp_pred"]], on="seqName", how="left")
         df_summary_res = df_summary_res.merge(df_cysteines[["seqName", "cysteines_count"]], on="seqName", how="left")
-        df_summary_res.fillna(value={"cysteines_count": "ND"}, inplace=True)
-        df_summary_res = df_summary_res.apply(get_prot_properties, args=[retained_seq], axis=1)
+        df_summary_res = df_summary_res.apply(get_prot_properties, args=[retained_seq, "wholeProt"], axis=1)
+        df_summary_prot_w_sp = df_summary_res[df_summary_res["signalp_pred"] == "SP(Sec/SPI)"].copy()
+        df_summary_prot_w_sp = df_summary_prot_w_sp.apply(get_prot_properties, args=[mature_prot_idx, "matureProt"], axis=1)
+        df_summary_res = pds.merge(df_summary_res,
+                                   df_summary_prot_w_sp[["seqName", "isoelectric_matureProt", "gravy_matureProt",
+                                                        "molecular_weight_matureProt"]],
+                                   on="seqName", how="left")
+        df_summary_res.fillna(value={"cysteines_count": "ND", "isoelectric_matureProt": "ND", "gravy_matureProt": "ND",
+                                     "molecular_weight_matureProt": "ND"}, inplace=True)
         df_top_candidates = df_summary_res[(df_summary_res["hmmsearch"] == 1) & (df_summary_res["motifsearch"] == 1) &
                                            (df_summary_res["signalp_pred"] == "SP(Sec/SPI)") &
                                            (df_summary_res["cysteines_count"] == 8)]
         seq_ids_top_candidates = df_top_candidates["seqName"].to_list()
-        extract_seq(species_code=species_code, fasta_file=fasta_file, path_out=path_res_out,
-                    list_ids=seq_ids_top_candidates, prefix_file="top_candidates")
+        extract_seq(species_code=species_code, fasta_file=fasta_file_cleaned, path_out=path_res_out,
+                    list_ids=seq_ids_top_candidates, prefix_file="top_candidates_wholeProt")
+        extract_seq(species_code=species_code, fasta_file=mature_prot, path_out=path_res_out,
+                    list_ids=seq_ids_top_candidates, prefix_file="top_candidates_matureProt")
         path_seq_top_candidates = glob(f"{path_res_out}{path.sep}{species_code}*.fa")[0]
 
         sys.stdout.write("done\n")
@@ -156,8 +180,9 @@ def main():
         sys.stdout.write(f"{len(df_top_candidates)} top candidates identified!!\n")
         sys.stdout.flush()
 
-        df_summary_res.to_csv(f"{path_res_out}{path.sep}{species_code}_all_results.tsv", sep="\t")
-        df_top_candidates.to_csv(f"{path_res_out}{path.sep}{species_code}_top_candidates_results.tsv", sep="\t")
+        df_summary_res.to_csv(f"{path_res_out}{path.sep}{species_code}_all_results.tsv", sep="\t", index=False)
+        df_top_candidates.to_csv(f"{path_res_out}{path.sep}{species_code}_top_candidates_results.tsv", sep="\t",
+                                 index=False)
 
         # Run MEME
         sys.stdout.write("Running MEME...  ")
@@ -183,8 +208,8 @@ def main():
                 shutil.copyfileobj(readfile, outfile)
     outfile.close()
     all_top_candidates = path_res_out + path.sep + "all_top_candidates.fasta"
-    run_meme(fasta_query=all_top_candidates, meme_res_out=path_meme_out, analysis_type="top_candidates",
-             species_code="all", cpus=args.threads)
+    # run_meme(fasta_query=all_top_candidates, meme_res_out=path_meme_out, analysis_type="top_candidates",
+    #          species_code="all", cpus=args.threads)
     sys.stdout.write("done\n")
     sys.stdout.flush()
 

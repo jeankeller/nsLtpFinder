@@ -10,7 +10,15 @@ import pandas as pds
 from glob import glob
 from os import path
 from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
+
+
+def clean_fasta(fasta, path_clean_fasta, species_code):
+    with open(path_clean_fasta + path.sep + species_code + "_clean.fasta", "w") as fasta_clean:
+        for rec in SeqIO.parse(fasta, "fasta"):
+            clean_rec = SeqRecord(seq=rec.seq.upper(), id=rec.id, description="")
+            SeqIO.write(clean_rec, fasta_clean, "fasta-2line")
 
 
 def get_sequences_id_tp_extract(species_code, path_hmmer_res, path_ms_res):
@@ -68,18 +76,20 @@ def extract_seq(species_code, fasta_file, path_out, list_ids, prefix_file):
     fasta_out.close()
 
 
-def get_prot_properties(s, retained_seq):
+def get_prot_properties(s, retained_seq, cat):
     """
     Function to add column to the summarizing dataframe with protein properties (isoelectric point, gravy and
     molecular weight so far, other can be added)
     :param s: dataframe
     :param retained_seq: FASTA file of sequences to analyze
+    :param cat: suffix to append at the end of column name if protein properties is made on different protein versions
+    (e.g mature and non mature)
     :return: dataframe with new columns containing protein properties
     """
     seq = ProteinAnalysis(clean_seq(str(retained_seq[s["seqName"]].seq)))
-    s["isoelectric"] = seq.isoelectric_point()
-    s["gravy"] = seq.gravy()
-    s["molecular_weight"] = seq.molecular_weight()
+    s["isoelectric_" + cat] = seq.isoelectric_point()
+    s["gravy_" + cat] = seq.gravy()
+    s["molecular_weight_" + cat] = seq.molecular_weight()
     return s
 
 
