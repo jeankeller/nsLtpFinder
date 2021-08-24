@@ -126,7 +126,7 @@ def main():
                     list_ids=sequences_to_get, prefix_file="all_candidates")
         sys.stdout.write("done\n")
         sys.stdout.flush()
-        path_retained_seq = glob(f"{path_fasta_seq}{path.sep}{species_code}*")[0]
+        path_retained_seq = glob(f"{path_fasta_seq}{path.sep}{species_code}_all_candidates_retained_seq.fa")[0]
         retained_seq = SeqIO.index(path_retained_seq, "fasta")
 
         sys.stdout.write("Running signalp...  ")
@@ -141,7 +141,7 @@ def main():
         cysteine_count = {}
         for rec in SeqIO.parse(mature_prot, "fasta"):
             cysteine_count[rec.id] = count_cysteines(str(rec.seq))
-        df_cysteines = pds.DataFrame.from_dict(cysteine_count, orient="index", columns=["cysteines_count"]).\
+        df_cysteines = pds.DataFrame.from_dict(cysteine_count, orient="index", columns=["cysteines_count"]). \
             reset_index()
         df_cysteines.rename(columns={"index": "seqName"}, inplace=True)
         df_cysteines["cysteines_count"] = df_cysteines["cysteines_count"].astype("int32")
@@ -159,39 +159,61 @@ def main():
         df_summary_prot_w_sp = df_summary_res[df_summary_res["signalp_pred"] == "SP(Sec/SPI)"].copy()
         df_summary_prot_w_sp = df_summary_prot_w_sp.apply(get_prot_properties, args=[mature_prot_idx, "matureProt"],
                                                           axis=1)
+        sys.stdout.write("done\n")
+        sys.stdout.flush()
+
         df_summary_res = pds.merge(df_summary_res,
                                    df_summary_prot_w_sp[["seqName", "isoelectric_matureProt", "gravy_matureProt",
-                                                        "molecular_weight_matureProt"]],
+                                                         "molecular_weight_matureProt"]],
                                    on="seqName", how="left")
         df_summary_res.fillna(value={"cysteines_count": "ND", "isoelectric_matureProt": "ND", "gravy_matureProt": "ND",
                                      "molecular_weight_matureProt": "ND"}, inplace=True)
         df_top_candidates = df_summary_res[(df_summary_res["hmmsearch"] == 1) & (df_summary_res["motifsearch"] == 1) &
                                            (df_summary_res["signalp_pred"] == "SP(Sec/SPI)") &
                                            (df_summary_res["cysteines_count"] == 8)]
+        df_low_conf_candidates = df_summary_res[(df_summary_res["hmmsearch"] == 0) &
+                                                (df_summary_res["motifsearch"] == 1) &
+                                                (df_summary_res["signalp_pred"] == "SP(Sec/SPI)") &
+                                                (df_summary_res["cysteines_count"] == 8)]
+
         seq_ids_top_candidates = df_top_candidates["seqName"].to_list()
-        extract_seq(species_code=species_code, fasta_file=fasta_file_cleaned, path_out=path_res_out,
+        seq_ids_low_conf_candidates = df_low_conf_candidates["seqName"].to_list()
+        extract_seq(species_code=species_code, fasta_file=fasta_file_cleaned, path_out=path_fasta_seq,
                     list_ids=seq_ids_top_candidates, prefix_file="top_candidates_wholeProt")
-        extract_seq(species_code=species_code, fasta_file=mature_prot, path_out=path_res_out,
+        extract_seq(species_code=species_code, fasta_file=mature_prot, path_out=path_fasta_seq,
                     list_ids=seq_ids_top_candidates, prefix_file="top_candidates_matureProt")
-        path_seq_top_candidates = glob(f"{path_res_out}{path.sep}{species_code}*.fa")[0]
+        extract_seq(species_code=species_code, fasta_file=fasta_file_cleaned, path_out=path_fasta_seq,
+                    list_ids=seq_ids_low_conf_candidates, prefix_file="low_conf_candidates_wholeProt")
+        extract_seq(species_code=species_code, fasta_file=mature_prot, path_out=path_fasta_seq,
+                    list_ids=seq_ids_low_conf_candidates, prefix_file="low_conf_candidates_matureProt")
+
+        top_and_low_conf_canditates_num = merge_fasta(path_fasta_dir=path_fasta_seq, species_code=species_code)
+
+        path_seq_top_low_conf_candidates_mature = glob(f"{path_fasta_seq}{path.sep}{species_code}"
+                                                       f"_top_and_low_conf_candidates_matureProt.fa")[0]
 
         sys.stdout.write("done\n")
         sys.stdout.flush()
 
-        sys.stdout.write(f"{len(df_top_candidates)} top candidates identified!!\n")
+        sys.stdout.write(f"{len(df_top_candidates)} top candidates identified ({top_and_low_conf_canditates_num}"
+                         f" including low confidence candidates (no HMMSEARCH hit)!!\n")
         sys.stdout.flush()
 
         df_summary_res.to_csv(f"{path_res_out}{path.sep}{species_code}_all_results.tsv", sep="\t", index=False)
         df_top_candidates.to_csv(f"{path_res_out}{path.sep}{species_code}_top_candidates_results.tsv", sep="\t",
                                  index=False)
+        df_low_conf_candidates.to_csv(f"{path_res_out}{path.sep}{species_code}_low_conf_candidates_results.tsv",
+                                      sep="\t", index=False)
 
         # Run MEME
-        sys.stdout.write("Running MEME...  ")
+        sys.stdout.write("Running MEME on mature sequences (top and low confidence candidates)...  ")
         sys.stdout.flush()
-        run_meme(fasta_query=path_retained_seq, meme_res_out=path_meme_out, analysis_type="all_candidates",
-                 species_code=species_code, cpus=args.threads)
-        run_meme(fasta_query=path_seq_top_candidates, meme_res_out=path_meme_out, analysis_type="top_candidates",
-                 species_code=species_code, cpus=args.threads)
+        # run_meme(fasta_query=path_retained_seq, meme_res_out=path_meme_out, analysis_type="all_candidates",
+        #          species_code=species_code, cpus=args.threads)
+        # run_meme(fasta_query=path_seq_top_candidates, meme_res_out=path_meme_out, analysis_type="top_candidates",
+        #          species_code=species_code, cpus=args.threads)
+        run_meme(fasta_query=path_seq_top_low_conf_candidates_mature, meme_res_out=path_meme_out,
+                 analysis_type="top_and_low_conf_candidates_matureProt", species_code=species_code, cpus=args.threads)
 
         sys.stdout.write("done\n")
         sys.stdout.flush()
@@ -200,22 +222,23 @@ def main():
         sys.stdout.flush()
 
     # Running MEME on merged top candidates from all query species
-    sys.stdout.write("Running MEME on all top candidates...  ")
+    sys.stdout.write("Running MEME on all top and low confidence candidates...  ")
     sys.stdout.flush()
-    top_candidates_files = glob(f"{path_res_out}{path.sep}*.fa")
-    with open(f"{path_res_out}{path.sep}all_top_candidates.fasta", "wb") as outfile:
+    top_candidates_files = glob(f"{path_fasta_seq}{path.sep}*_top_and_low_conf_candidates_matureProt.fa")
+    with open(f"{path_res_out}{path.sep}all_top_and_low_conf_candidates_matureProt.fasta", "wb") as outfile:
         for file in top_candidates_files:
             with open(file, "rb") as readfile:
                 shutil.copyfileobj(readfile, outfile)
     outfile.close()
-    all_top_candidates = path_res_out + path.sep + "all_top_candidates.fasta"
-    run_meme(fasta_query=all_top_candidates, meme_res_out=path_meme_out, analysis_type="top_candidates",
-             species_code="all", cpus=args.threads)
+    all_top_low_conf_candidates = path_res_out + path.sep + "all_top_and_low_conf_candidates_matureProt.fasta"
+    run_meme(fasta_query=all_top_low_conf_candidates, meme_res_out=path_meme_out,
+             analysis_type="top_low_conf_candidates", species_code="all", cpus=args.threads)
     sys.stdout.write("done\n")
     sys.stdout.flush()
 
-    sys.stdout.write(f"Results location:\n=> HMMSEARCH: {hmmsearch_outdir}\n=> motifSearch: {ms_outdir}\n"
-                     f"=> signalP: {path_signalp_out}\n=> MEME: {path_meme_out}\n=> Final results: {path_res_out}\n")
+    sys.stdout.write(f"Results location:\n\t=> HMMSEARCH: {hmmsearch_outdir}\n\t=> motifSearch: {ms_outdir}\n\t"
+                     f"=> signalP: {path_signalp_out}\n\t=> MEME: {path_meme_out}\n\t=> Sequences: {path_fasta_seq}\n\t"
+                     f"=> Final results: {path_res_out}\n")
     sys.stdout.flush()
 
 

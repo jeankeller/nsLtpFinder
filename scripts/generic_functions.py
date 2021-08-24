@@ -104,3 +104,20 @@ def clean_seq(seq):
 
 def count_cysteines(seq):
     return seq.upper().count("C")
+
+
+def merge_fasta(path_fasta_dir, species_code):
+    """
+    Function to merge fasta files
+    :param path_fasta_dir: path to directory containing FASTA files to merge
+    :param species_code: six-letter prefix species-specific
+    :return: number of sequences after merging
+    """
+    list_fasta_to_merge = [SeqIO.index(x, "fasta") for x in
+                           glob(f"{path_fasta_dir}{path.sep}{species_code}*_matureProt_retained_seq.fa")]
+    fasta_merged = open(f"{path_fasta_dir}{path.sep}{species_code}_top_and_low_conf_candidates_matureProt.fa", "w")
+    tmp_index = {k: v for d in list_fasta_to_merge for k, v in d.items()}
+    for rec in tmp_index:
+        SeqIO.write(tmp_index[rec], fasta_merged, "fasta-2line")
+    return len(tmp_index)
+
