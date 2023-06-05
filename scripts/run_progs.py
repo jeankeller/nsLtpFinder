@@ -43,7 +43,7 @@ def run_motifsearch(fasta_query, output_dir, species_code):
     fcount = open(output_dir + path.sep + f"{species_code}_motifs_count.txt", "w")
     fpos = open(output_dir + path.sep + f"{species_code}_motifs_positions.txt", "w")
     fseq = open(output_dir + path.sep + f"{species_code}_motifs_sequences.fa", "w")
-    search_motif = motif_finder.GetMotifs(motif="C.{6,14}C.{8,24}CC.{8,29}C.C.{8,34}C.{5,17}C", fasta_file=fasta_query,
+    search_motif = motif_finder.GetMotifs(motif="C.(6,15)C.(6,80)CC.(8,29)C.C.(8,37)C.(4,25)C", fasta_file=fasta_query,
                                           path_count=fcount, fseq=fseq, fpos=fpos)
     search_motif.checkinput()
     search_motif.writemotif()
